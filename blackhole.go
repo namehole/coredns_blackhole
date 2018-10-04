@@ -21,8 +21,14 @@ func (b Blackhole) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Ms
 	state := request.Request{W: w, Req: r}
 	_, ok := b.Blocklist[state.Name()]
 	if ok {
-		return dns.RcodeRefused, nil
+		log.Debugf("Blocked domain %s", state.Name())
+		a :=  new(dns.Msg)
+		a.SetRcode(r, dns.RcodeRefused)
+		a.Authoritative = true
+		a.RecursionAvailable = true
+		a.RecursionDesired = r.RecursionDesired
+		w.WriteMsg(a)
+		return dns.RcodeNameError, nil
 	}
-
 	return plugin.NextOrFailure(b.Name(), b.Next, ctx, w, r)
 }
