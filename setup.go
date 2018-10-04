@@ -20,12 +20,11 @@ func setup(c *caddy.Controller) error {
 	c.Next() // 'blackhole'
 
 	files := []string{}
-
 	for c.Next() {
 		files = append(files, c.Val())
 	}
 
-	if (len(files) == 0) {
+	if len(files) == 0 {
 		return plugin.Error("blackhole", c.ArgErr())
 	}
 
@@ -33,7 +32,7 @@ func setup(c *caddy.Controller) error {
 
 	for _, file := range files {
 		f, err := os.Open(file)
-		if (err != nil) {
+		if err != nil {
 			return plugin.Error("blackhole", err)
 		}
 		defer f.Close()
@@ -43,18 +42,22 @@ func setup(c *caddy.Controller) error {
 
 		for scanner.Scan() {
 			line := scanner.Text()
-			if ! strings.HasPrefix("#", line) {
+			if !strings.HasPrefix("#", line) {
 				if !strings.HasSuffix(".", line) {
-					line = line+"."
+					line = line + "."
 				}
 				blocklist[line] = struct{}{}
 			}
 		}
 	}
 
-	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
-		return Blackhole{Next: next, Blocklist: blocklist}
-	})
+	dnsserver.GetConfig(c).AddPlugin(
+		func(next plugin.Handler) plugin.Handler {
+			return Blackhole{
+				Next:      next,
+				Blocklist: blocklist,
+			}
+		})
 
 	return nil
 }
