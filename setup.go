@@ -130,6 +130,10 @@ func parseOptions(c *caddy.Controller) (*Blocklist, *Options, []string, error) {
 		}
 	}
 
+	if len(urls) == 0 {
+		return nil, nil, nil, c.Err("No urls found")
+	}
+
 	return blocklist, &options, urls, nil
 }
 
