@@ -8,51 +8,54 @@ import (
 	"testing"
 )
 
-func TestExample(t *testing.T) {
+func TestBlackhole_ServeDNS(t *testing.T) {
 	// Create a new Example Plugin. Use the test.ErrorHandler as the next plugin.
-	bl := Blackhole{Next: nil, Blocklist: map[string]struct{}{
-			"google.com.": struct{}{},
-			"facebook.com.": struct {}{},
-		},
-	}
+	list := Blocklist{}
+	list.Add("example.net.")
+	bl := Blackhole{Next: test.ErrorHandler(), Blocklist: &list}
 
 	ctx := context.TODO()
 
 	tests := []struct {
-		reqDomain    string
-		shouldErr    bool
-		shouldRefuse bool
+		reqDomain     string
+		shouldErr     bool
+		expectedRCode int
 	}{
 		{
-			"google.com",
+			"example.net",
 			false,
-			true,
+			BlockedRcode,
 		},
 
 		{
 			"example.com",
-			true,
 			false,
+			dns.RcodeServerFailure,
 		},
 	}
 
-	for i, testing := range tests {
+	for i, testcase := range tests {
 		req := new(dns.Msg)
 
-		req.SetQuestion(dns.Fqdn(testing.reqDomain), dns.TypeA)
+		req.SetQuestion(dns.Fqdn(testcase.reqDomain), dns.TypeA)
 
 		rec := dnstest.NewRecorder(&test.ResponseWriter{})
 
 		code, err := bl.ServeDNS(ctx, rec, req)
 
-		if err == nil && testing.shouldErr {
-			t.Fatalf("Test %d expected errors, but got no error", i)
-		} else if err != nil && !testing.shouldErr {
-			t.Fatalf("Test %d expected no errors, but got '%v'", i, err)
+		if err == nil && testcase.shouldErr {
+			t.Fatalf("Test %d: expected errors, but got no error", i)
+		} else if err != nil && !testcase.shouldErr {
+			t.Fatalf("Test %d: expected no errors, but got '%v'", i, err)
+			continue
 		}
 
-		if code != dns.RcodeRefused && testing.shouldRefuse {
-			t.Errorf("Expected status code %d, but got %d", dns.RcodeRefused, code)
+		if code != testcase.expectedRCode {
+			t.Errorf("Test %d: Expected status code %d, but got %d", i, testcase.expectedRCode, code)
+		}
+
+		if rec.Rcode != testcase.expectedRCode {
+			t.Errorf("Test %d: Expected return code %d, but got %d", i, testcase.expectedRCode, rec.Rcode)
 		}
 	}
 }
