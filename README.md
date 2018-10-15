@@ -13,7 +13,7 @@ The _blackhole_ plugin downloads blocklists and applies them to the DNS queries.
 ## Syntax
 
 ```
-blackhole [BLOCKLIST_FILE... ] [BLICKLIST_URL... ] {
+blackhole [BLOCKLIST_FILE... ] [BLOCKLIST_URL... ] {
     refresh SECONDS
 }
 ```
