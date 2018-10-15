@@ -1,7 +1,7 @@
 package coredns_blackhole
 
 import (
-	"coredns/test"
+	"github.com/coredns/coredns/test"
 	"testing"
 
 	"github.com/mholt/caddy"
