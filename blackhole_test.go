@@ -10,9 +10,9 @@ import (
 
 func TestBlackhole_ServeDNS(t *testing.T) {
 	// Create a new Example Plugin. Use the test.ErrorHandler as the next plugin.
-	list := Blocklist{}
+	list := NewBlocklist()
 	list.Add("example.net.")
-	bl := Blackhole{Next: test.ErrorHandler(), Blocklist: &list}
+	bl := Blackhole{Next: test.ErrorHandler(), Blocklist: list}
 
 	ctx := context.TODO()
 

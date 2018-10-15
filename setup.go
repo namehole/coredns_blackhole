@@ -2,7 +2,7 @@ package coredns_blackhole
 
 import (
 	"bufio"
-	"errors"
+	"fmt"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
 	"github.com/mholt/caddy"
@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,19 +23,8 @@ func init() {
 	})
 }
 
-type Blocklist map[string]struct{}
-
-func (b Blocklist) Add(s string) {
-	b[s] = struct{}{}
-}
-
-func (b Blocklist) Find(s string) bool {
-	_, ok := b[s]
-	return ok
-}
-
 func setup(c *caddy.Controller) error {
-	blocklist, urls, err := parseOptions(c)
+	blocklist, options, urls, err := parseOptions(c)
 
 	if err != nil {
 		return plugin.Error("blocklist", err)
@@ -44,7 +34,7 @@ func setup(c *caddy.Controller) error {
 
 	c.OnStartup(func() error {
 		go func() {
-			ticker := time.NewTicker(30 * time.Second)
+			ticker := time.NewTicker(options.refresh * time.Second)
 			for {
 				select {
 				case <-parseChan:
@@ -81,17 +71,18 @@ func setup(c *caddy.Controller) error {
 	return nil
 }
 
-func parseOptions(c *caddy.Controller) (*Blocklist, []string, error) {
-	blocklist := Blocklist{}
+func parseOptions(c *caddy.Controller) (*Blocklist, *Options, []string, error) {
+	blocklist := NewBlocklist()
+	options := NewOptions()
 	var urls []string
 	c.Next() // Skip plugin name
 
 	for c.Next() {
 		val := c.Val()
 		if strings.HasPrefix(val, "http://") || strings.HasPrefix(val, "https://") {
-			err := getList(val, &blocklist)
+			err := getList(val, blocklist)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			urls = append(urls, val)
 			log.Debugf("Loaded and parsed blocklist from %s", val)
@@ -99,9 +90,9 @@ func parseOptions(c *caddy.Controller) (*Blocklist, []string, error) {
 
 		finfo, err := os.Stat(val)
 		if err == nil && !finfo.IsDir() {
-			ret, err := getListsFromFile(val, &blocklist, urls)
+			ret, err := getListsFromFile(val, blocklist, urls)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			urls = append(urls, ret...)
 		}
@@ -109,17 +100,37 @@ func parseOptions(c *caddy.Controller) (*Blocklist, []string, error) {
 		for c.NextBlock() {
 			switch c.Val() {
 			case "refresh":
-				log.Debug("refresh")
-
+				if !c.NextArg() {
+					return nil, nil, nil, c.ArgErr()
+				}
+				n, err := strconv.Atoi(c.Val())
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				if n < 0 {
+					return nil, nil, nil, fmt.Errorf("refresh can't be negative: %d", n)
+				}
+				options.refresh = time.Duration(n)
+			case "retry":
+				if !c.NextArg() {
+					return nil, nil, nil, c.ArgErr()
+				}
+				n, err := strconv.Atoi(c.Val())
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				if n < 0 {
+					return nil, nil, nil, fmt.Errorf("retry can't be negative: %d", n)
+				}
+				options.retry = n
+			default:
+				return nil, nil, nil, c.Errf("unknown property '%s'", c.Val())
 			}
+
 		}
 	}
 
-	if len(blocklist) == 0 {
-		return nil, nil, errors.New("nothing found")
-	}
-
-	return &blocklist, urls, nil
+	return blocklist, &options, urls, nil
 }
 
 func getListsFromFile(path string, blocklist *Blocklist, urls []string) ([]string, error) {

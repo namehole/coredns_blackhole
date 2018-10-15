@@ -14,16 +14,6 @@ func TestSetup_BlocklistURLs(t *testing.T) {
 	if err := setup(c); err != nil {
 		t.Fatalf("Unexpected errors, got: %v", err)
 	}
-
-	c = caddy.NewTestController("dns", `blackhole`)
-	if err := setup(c); err == nil {
-		t.Fatalf("Expected errors, but got: %v", err)
-	}
-
-	c = caddy.NewTestController("dns", `blackhole invalid`)
-	if err := setup(c); err == nil {
-		t.Fatalf("Expected errors, but got: %v", err)
-	}
 }
 
 func TestSetup_BlocklistFile(t *testing.T) {
@@ -34,6 +24,19 @@ func TestSetup_BlocklistFile(t *testing.T) {
 	defer rm()
 
 	c := caddy.NewTestController("dns", `blackhole `+blocklistFile)
+	if err := setup(c); err != nil {
+		t.Fatalf("Unexpected errors, got: %v", err)
+	}
+}
+
+func TestSetup_BlocklistOptions(t *testing.T) {
+	blocklistURLs :=
+		`https://s3.amazonaws.com/lists.disconnect.me/simple_ad.txt
+{
+	reload 100
+}`
+
+	c := caddy.NewTestController("dns", `blackhole `+blocklistURLs)
 	if err := setup(c); err != nil {
 		t.Fatalf("Unexpected errors, got: %v", err)
 	}
